@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+         body {
+        height: 100vh;
+        margin: 0;
+      }
+
+        canvas {
+            background-color: black;
+        }
+    </style>
+
+<body>
+    <canvas id="canvas" width="600" height="200"></canvas>
+    <script>
+
+        // Get canvas and context
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let cw;
+        let ch; 
+
+function resizeCanvas() {
+    cw = canvas.width = window.innerWidth;
+    ch = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+
+        let count = 0
+        const noteStates = Array(88).fill(0);
+        const keys = Array(88).map(() => false);
+
+        // Set up a function to handle MIDI messages
+        function handleMIDIMessage(e) {
+            //console.log(e);
+            const message = e.data;
+            // console.log(`${message[0]} ${message[1]} ${message[2]}`);
+
+            // Extract the type of the message (the first 4 bits)
+            const messageType = message[0] & 0xF0;
+
+            // Extract the channel (the last 4 bits)
+            const channel = message[0] & 0x0F;
+
+            switch (messageType) {
+                case 0x90: // Note on
+                case 0x80: // Note off
+                    const pitch = message[1];
+                    keys[pitch - 21] = (messageType === 0x90);
+                    if (keys[pitch - 21])
+                      noteStates[pitch - 21] = 1.0;
+                    break;
+            }
+        }
+
+        // Set up an event listener to call the handleMIDIMessage function
+        // whenever a MIDI message is received
+
+        if (navigator.requestMIDIAccess) {
+            console.log('MIDI is supported in this browser')
+            navigator.requestMIDIAccess()
+                .then(function (midiAccess) {
+                    console.log('MIDI access granted')
+                    // Do something with MIDI access here
+                })
+                .catch(function (error) {
+                    console.log('Error requesting MIDI access: ', error)
+                })
+        } else {
+            console.log('MIDI is not supported in this browser')
+        }
+
+        navigator.requestMIDIAccess().then(function (midiAccess) {
+            midiAccess.inputs.forEach(function (input) {
+                input.addEventListener('midimessage', handleMIDIMessage);
+            });
+        });
+
+
+
+        function draw() {
+            ctx.clearRect(0, 0, cw, ch);
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = "white";
+            ctx.globalCompositeOperation = 'xor';
+            const bw = cw / 88;
+            for (let i = 0; i < 88; i++) {
+                noteStates[i] *= keys[i] ? 0.995 : 0.97; 
+                const height = ch * noteStates[i];
+                const width = cw/3*(1-noteStates[i]);
+    if (height > 0.5) {
+        const x = bw * i + (bw - width) / 2;
+        const y = (ch - height) / 2;
+        const w = bw + width;
+        const h = height;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeRect(x, y, w, h);
+    }
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        draw(); // start the animation loop
+
+    // Fullscreen toggle on 'f' key
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'f') {
+            toggleFullScreen();
+        }
+    });
+
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.log(`Error attempting to enable full-screen mode: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+    </script>
+
+</body>
+
+</html>

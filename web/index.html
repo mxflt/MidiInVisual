@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MidiInVisual Web</title>
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+    }
+
+    #hud {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      max-width: min(680px, calc(100vw - 28px));
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: rgb(0 0 0 / 55%);
+      line-height: 1.45;
+      pointer-events: none;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="hud">Starting MIDI...</div>
+
+  <script>
+    const firstMidi = 21;
+    const lastMidi = 108;
+    const keyCount = 88;
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const hud = document.getElementById("hud");
+
+    const noteStates = Array(keyCount).fill(0);
+    const keyStates = Array(keyCount).fill(false);
+
+    let eventCount = 0;
+    let lastMessage = "-";
+    let sourceNames = [];
+    let width = 0;
+    let height = 0;
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function noteName(midi) {
+      const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+      return `${names[midi % 12]}${Math.floor(midi / 12) - 1}`;
+    }
+
+    function updateHud(status) {
+      const sources = sourceNames.length > 0
+        ? `Sources: ${sourceNames.join(", ")}`
+        : "Sources: -";
+      hud.textContent = `${status}\nEvents: ${eventCount}\nLast: ${lastMessage}\n${sources}`;
+    }
+
+    function handleMidiMessage(event) {
+      const data = event.data;
+      let index = 0;
+
+      while (index + 2 < data.length) {
+        const status = data[index];
+        const type = status & 0xF0;
+        const pitch = data[index + 1];
+        const velocity = data[index + 2];
+
+        if (type === 0x90 || type === 0x80) {
+          const isOn = type === 0x90 && velocity > 0;
+          const keyIndex = pitch - firstMidi;
+          if (keyIndex >= 0 && keyIndex < keyCount) {
+            keyStates[keyIndex] = isOn;
+            if (isOn) {
+              noteStates[keyIndex] = 1.0;
+            }
+
+            eventCount += 1;
+            lastMessage = `${isOn ? "On " : "Off"} ${noteName(pitch)} midi=${pitch} velocity=${velocity}`;
+            updateHud("MIDI input active");
+          }
+          index += 3;
+        } else {
+          index += (type === 0xC0 || type === 0xD0) ? 2 : 3;
+        }
+      }
+    }
+
+    async function startMidi() {
+      if (!navigator.requestMIDIAccess) {
+        updateHud("MIDI is not supported in this browser");
+        return;
+      }
+
+      try {
+        const midiAccess = await navigator.requestMIDIAccess();
+        connectInputs(midiAccess);
+        midiAccess.addEventListener("statechange", () => connectInputs(midiAccess));
+      } catch (error) {
+        updateHud(`Error requesting MIDI access: ${error.message}`);
+      }
+    }
+
+    function connectInputs(midiAccess) {
+      sourceNames = [];
+      for (const input of midiAccess.inputs.values()) {
+        sourceNames.push(input.name || "<unknown>");
+        input.onmidimessage = handleMidiMessage;
+      }
+
+      updateHud(sourceNames.length === 0
+        ? "No MIDI inputs found"
+        : `Connected MIDI inputs: ${sourceNames.length}`);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "white";
+      ctx.strokeStyle = "rgba(255,255,255,0.8)";
+      ctx.globalCompositeOperation = "difference";
+
+      const keyWidth = width / keyCount;
+      for (let i = 0; i < keyCount; i++) {
+        noteStates[i] *= keyStates[i] ? 0.995 : 0.97;
+        if (noteStates[i] < 0.001) {
+          noteStates[i] = 0;
+        }
+
+        const state = noteStates[i];
+        if (state <= 0.005) {
+          continue;
+        }
+
+        const rectHeight = height * state;
+        const extraWidth = width / 3 * (1 - state);
+        const x = keyWidth * i + (keyWidth - extraWidth) / 2;
+        const y = (height - rectHeight) / 2;
+        const rectWidth = keyWidth + extraWidth;
+
+        ctx.fillRect(x, y, rectWidth, rectHeight);
+        ctx.strokeRect(x, y, rectWidth, rectHeight);
+      }
+
+      ctx.globalCompositeOperation = "source-over";
+      requestAnimationFrame(draw);
+    }
+
+    document.addEventListener("keydown", event => {
+      if (event.key !== "f") {
+        return;
+      }
+
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(error => {
+          updateHud(`Fullscreen failed: ${error.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    });
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+    draw();
+    startMidi();
+  </script>
+</body>
+</html>
