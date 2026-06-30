@@ -43,4 +43,4 @@ The browser may ask for MIDI permission. Incoming note-on and note-off events ar
 
 ## Scope
 
-This repository intentionally avoids application-specific code from tabla or Ruscelli. It is a small, isolated platform probe for MIDI input.
+This repository intentionally avoids additional framework code. It is a small, isolated platform probe for MIDI input.
