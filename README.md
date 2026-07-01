@@ -17,15 +17,22 @@ Can a device receive live MIDI note events from an electronic piano, and can tho
 - `web/midi_in_visual_01.html`  
   Original tiny browser experiment kept as a baseline/reference.
 
+- `index.html`  
+  Tiny redirect to `web/index.html`, useful for GitHub Pages.
+
 ## Current Platform Notes
 
-| Platform | MIDI input |
-| --- | --- |
-| iOS native app | Works with CoreMIDI and Bluetooth MIDI on a real device |
-| iOS Simulator | Bluetooth MIDI device discovery is not a useful test |
-| Chrome desktop on macOS | Web MIDI works |
-| Safari desktop on macOS | Web MIDI is not available |
-| iPad Safari | Web MIDI is not available |
+| Platform / browser | Observed result | Note |
+| --- | --- | --- |
+| iOS native app | Works | CoreMIDI and Bluetooth MIDI work on a real device |
+| iOS Simulator | Not useful | Bluetooth MIDI device discovery is not available as a realistic test |
+| Chrome desktop on macOS | Works | Shows a browser permission dialog for MIDI access |
+| Opera desktop on macOS | Works | Behaves like Chrome for this test |
+| Firefox desktop on macOS, `file://` | Unsupported | `navigator.requestMIDIAccess` is not exposed for local HTML files |
+| Firefox desktop on macOS, `localhost` | Works | Web MIDI is available when served from a local HTTP server |
+| Safari desktop on macOS | Unsupported | `navigator.requestMIDIAccess` is not exposed |
+| iPad Safari | Unsupported | Web MIDI is not available |
+| VS Code Live Preview / embedded Electron browser | Permission denied | Web MIDI API is visible, but `requestMIDIAccess` fails with `NotAllowedError`; use a normal Chrome/Opera tab for this test |
 
 ## iOS
 
@@ -40,6 +47,23 @@ Open `web/index.html` in a Web MIDI capable browser such as Chrome on macOS.
 The browser may ask for MIDI permission. Incoming note-on and note-off events are shown as simple animated bars over an 88-key range.
 
 `web/midi_in_visual_01.html` is the earlier minimal version. It is useful for comparison because it contains almost no surrounding structure.
+
+## Possible .NET / C# Variants
+
+These variants are not implemented in this repository yet, but they describe the useful next experiments:
+
+| Variant | MIDI access | UI/rendering | Expected result |
+| --- | --- | --- | --- |
+| Avalonia Browser / WASM | Web MIDI through JavaScript interop | C# + Avalonia + Skia in the browser | Possible in Chrome/Opera, but inherits the same Web MIDI browser limitations as `web/` |
+| Avalonia macOS Desktop | CoreMIDI via C# native interop | C# + Avalonia + Skia as a native desktop app | Possible without Web MIDI; similar MIDI access model to a native app |
+| Avalonia iOS | CoreMIDI through native iOS APIs | C# + Avalonia on iOS | Theoretically possible, but app signing, iOS lifecycle, and Bluetooth MIDI setup make it a larger experiment |
+| .NET MAUI / iOS | CoreMIDI through native iOS APIs | C# + MAUI | Another native iOS route; useful mainly if MAUI is already part of the stack |
+| Browser WASM with direct CoreMIDI | Not available | C# in browser sandbox | Not realistic; browser WASM cannot call Apple's CoreMIDI framework directly |
+
+The important distinction is:
+
+- Browser-based C# still needs Web MIDI and JavaScript interop for MIDI input.
+- Native C# apps can use CoreMIDI directly on Apple platforms.
 
 ## Scope
 

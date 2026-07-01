@@ -10,15 +10,41 @@
         canvas {
             background-color: black;
         }
+
+        #midiButton {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 1;
+            padding: 8px 12px;
+            font: 14px monospace;
+        }
+
+        #status {
+            position: fixed;
+            top: 54px;
+            left: 12px;
+            max-width: min(720px, calc(100vw - 24px));
+            z-index: 1;
+            padding: 8px 12px;
+            color: white;
+            background: rgba(0, 0, 0, 0.55);
+            font: 13px monospace;
+            white-space: pre-wrap;
+        }
     </style>
 
 <body>
+    <button id="midiButton">Start MIDI</button>
+    <div id="status">MIDI not started</div>
     <canvas id="canvas" width="600" height="200"></canvas>
     <script>
 
         // Get canvas and context
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        const midiButton = document.getElementById('midiButton');
+        const status = document.getElementById('status');
 
         let cw;
         let ch; 
@@ -34,6 +60,7 @@ resizeCanvas();
         let count = 0
         const noteStates = Array(88).fill(0);
         const keys = Array(88).map(() => false);
+        let midiAccess = null;
 
         // Set up a function to handle MIDI messages
         function handleMIDIMessage(e) {
@@ -58,28 +85,79 @@ resizeCanvas();
             }
         }
 
-        // Set up an event listener to call the handleMIDIMessage function
-        // whenever a MIDI message is received
-
-        if (navigator.requestMIDIAccess) {
-            console.log('MIDI is supported in this browser')
-            navigator.requestMIDIAccess()
-                .then(function (midiAccess) {
-                    console.log('MIDI access granted')
-                    // Do something with MIDI access here
-                })
-                .catch(function (error) {
-                    console.log('Error requesting MIDI access: ', error)
-                })
-        } else {
-            console.log('MIDI is not supported in this browser')
+        function setStatus(text) {
+            status.textContent = text;
+            console.log(text);
         }
 
-        navigator.requestMIDIAccess().then(function (midiAccess) {
+        function environmentInfo() {
+            return `Browser: ${navigator.userAgent}\nURL: ${location.protocol}\nSecure context: ${window.isSecureContext}`;
+        }
+
+        function unsupportedMessage() {
+            return [
+                'Web MIDI status: unsupported',
+                '',
+                'This browser does not expose navigator.requestMIDIAccess.',
+                'Expected examples: Firefox, Safari, iPad Safari.',
+                '',
+                environmentInfo()
+            ].join('\n');
+        }
+
+        function permissionMessage(error) {
+            return [
+                `Web MIDI status: permission denied (${error.name})`,
+                '',
+                'The browser exposes Web MIDI, but this page/context is not allowed to use it.',
+                'This can happen in embedded browsers, VS Code previews, blocked site permissions, or stricter file:// handling.',
+                'Try Chrome or Opera as a normal top-level tab and reset MIDI permissions for this page if needed.',
+                '',
+                environmentInfo()
+            ].join('\n');
+        }
+
+        function connectInputs() {
+            if (!midiAccess) return;
+
             midiAccess.inputs.forEach(function (input) {
-                input.addEventListener('midimessage', handleMIDIMessage);
+                input.onmidimessage = handleMIDIMessage;
             });
-        });
+
+            const names = Array.from(midiAccess.inputs.values())
+                .map(input => input.name || '<unknown>');
+            const sourceText = names.length > 0
+                ? names.join(', ')
+                : '-';
+
+            setStatus([
+                `Web MIDI status: ready`,
+                `Inputs: ${midiAccess.inputs.size}`,
+                `Sources: ${sourceText}`
+            ].join('\n'));
+        }
+
+        async function startMIDI() {
+            if (!navigator.requestMIDIAccess) {
+                setStatus(unsupportedMessage());
+                midiButton.disabled = true;
+                return;
+            }
+
+            setStatus('Web MIDI status: requesting access...');
+
+            try {
+                midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+                midiAccess.addEventListener('statechange', connectInputs);
+                connectInputs();
+            } catch (error) {
+                setStatus(permissionMessage(error));
+            }
+        }
+
+        midiButton.addEventListener('click', startMIDI);
+        if (!navigator.requestMIDIAccess)
+            setStatus(unsupportedMessage());
 
 
 
