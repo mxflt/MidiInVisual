@@ -17,6 +17,9 @@ Can a device receive live MIDI note events from an electronic piano, and can tho
 - `web/midi_in_visual_01.html`  
   Original tiny browser experiment kept as a baseline/reference.
 
+- `wasm/MidiInVisual.Wasm.csproj`  
+  Minimal C# browser experiment. Web MIDI still comes through JavaScript interop, but the visualization is rendered directly into an Avalonia Browser Skia surface through a deliberately tiny `TPanel` / `TGraphics` layer.
+
 - `index.html`  
   Tiny redirect to `web/index.html`, useful for GitHub Pages.
 
@@ -48,13 +51,30 @@ The browser may ask for MIDI permission. Incoming note-on and note-off events ar
 
 `web/midi_in_visual_01.html` is the earlier minimal version. It is useful for comparison because it contains almost no surrounding structure.
 
+## WASM
+
+Run the C# / Skia WASM variant locally:
+
+```sh
+dotnet run --project wasm/MidiInVisual.Wasm.csproj
+```
+
+Then open the shown local URL in a Web MIDI capable browser. Press `Start MIDI` to trigger the browser permission dialog.
+
+This variant intentionally keeps the graphics layer tiny:
+
+- `TPanel` is a minimal Avalonia `Control` that paints through `ISkiaSharpApiLeaseFeature`.
+- `TGraphics` contains only the few drawing operations needed by this visualizer.
+- JavaScript is limited to Web MIDI, fullscreen, window sizing, and HUD text.
+
 ## Possible .NET / C# Variants
 
-These variants are not implemented in this repository yet, but they describe the useful next experiments:
+These variants describe useful follow-up experiments:
 
 | Variant | MIDI access | UI/rendering | Expected result |
 | --- | --- | --- | --- |
 | Avalonia Browser / WASM | Web MIDI through JavaScript interop | C# + Avalonia + Skia in the browser | Possible in Chrome/Opera, but inherits the same Web MIDI browser limitations as `web/` |
+| Minimal C# WASM | Web MIDI through JavaScript interop | C# + Avalonia Browser Skia through tiny `TPanel` / `TGraphics` | Implemented in `wasm/`; good as a small C# rendering probe |
 | Avalonia macOS Desktop | CoreMIDI via C# native interop | C# + Avalonia + Skia as a native desktop app | Possible without Web MIDI; similar MIDI access model to a native app |
 | Avalonia iOS | CoreMIDI through native iOS APIs | C# + Avalonia on iOS | Theoretically possible, but app signing, iOS lifecycle, and Bluetooth MIDI setup make it a larger experiment |
 | .NET MAUI / iOS | CoreMIDI through native iOS APIs | C# + MAUI | Another native iOS route; useful mainly if MAUI is already part of the stack |
